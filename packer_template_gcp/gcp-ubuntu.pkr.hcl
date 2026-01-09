@@ -10,7 +10,7 @@ packer {
     }
   }
 } 
-# Variables populated by secrets.auto.pkrvars.hcl file
+# Variables populated by secrets.auto.pkrvars.hcl 
 variable "admin_password" {
   type      = string
   sensitive = true
