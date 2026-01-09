@@ -1,0 +1,27 @@
+- name: Update apt cache
+  apt:
+    update_cache: yes
+
+- name: Install base packages
+  apt:
+    name:
+      - curl
+      - vim
+      - htop
+      - git
+    state: present
+
+- name: Install pip
+  apt:
+    name: python3-pip
+    state: present
+
+- name: Install passlib via pip
+  pip:
+    name: passlib
+
+- name: Set timezone to UTC
+  timezone:
+    name: Etc/UTC
+
+
