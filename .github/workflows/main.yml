@@ -3,10 +3,10 @@ name: Packer GCP Build
 on:
   push:
     branches:
-      - feature/packer-gcp-ci-setup
+      - main
   pull_request:
     branches:
-      - feature/packer-gcp-ci-setup
+      - main
   workflow_dispatch:
 
 jobs:
