@@ -186,11 +186,12 @@ jobs:
             -var="image_name=${{ needs.packer-build.outputs.image_name }}" \
             -auto-approve
 
-      #ADDE
+      #ADDED
       - name: Validate VM Users & Permissions
         run: |
-          chmod +x verify_users.sh
-          .vscode/scripts/verify_users.sh
+          ls -la .vscode/scripts   
+          chmod +x .vscode/scripts/verify_users.sh
+          ./.vscode/scripts/verify_users.sh
 
   terraform-destroy-after-30min:
     name: Terraform Destroy After 30 Minutes
