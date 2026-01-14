@@ -160,7 +160,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
         run: |
           chmod +x verify_users.sh
-          ./verify_users.sh
+          ./scripts/verify_users.sh
 
   terraform-destroy-after-30min:
     name: Terraform Destroy After 30 Minutes
