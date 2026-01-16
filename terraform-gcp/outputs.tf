@@ -7,3 +7,4 @@ output "vm_ip" {
   description = "External IP of the created VM"
   value       = module.packer_vm.vm_ip
 }
+#
