@@ -56,3 +56,4 @@ echo "SECURITY CHECK PASSED"
 echo "admin has sudo"
 echo "user-1 has NO sudo"
 EOF
+#
