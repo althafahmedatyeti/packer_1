@@ -21,7 +21,7 @@ cd ..
 echo "Waiting for VM SSH to be ready..."
 sleep 60
 
-SSH_OPTS="-i gha_ssh_key -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+SSH_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
 echo "Connecting to VM via SSH..."
 
@@ -35,7 +35,7 @@ id admin >/dev/null 2>&1 || {
 }
 
 echo "Checking user1 user..."
-id user1 >/dev/null 2>&1 || {
+id user-1 >/dev/null 2>&1 || {
   echo "user1 user does not exist"
   exit 1
 }
@@ -54,5 +54,5 @@ fi
 
 echo "SECURITY CHECK PASSED"
 echo "admin has sudo"
-echo "user1 has NO sudo"
+echo "user-1 has NO sudo"
 EOF
