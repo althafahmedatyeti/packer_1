@@ -172,7 +172,7 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
-          terraform init -reconfigure
+          terraform init
 
 
       - name: Terraform Validate
@@ -248,7 +248,7 @@ jobs:
           TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
-          terraform init -reconfigure
+          terraform init 
 
       - name: Terraform Destroy
         env:
