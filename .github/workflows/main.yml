@@ -169,9 +169,11 @@ jobs:
       - name: Terraform Init
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
-          terraform init
+          terraform init -reconfigure
+
 
       - name: Terraform Validate
         run: |
@@ -181,6 +183,7 @@ jobs:
       - name: Terraform Plan
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform plan \
@@ -190,6 +193,7 @@ jobs:
       - name: Terraform Apply
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform apply \
@@ -241,13 +245,15 @@ jobs:
       - name: Terraform Init
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
-          terraform init
+          terraform init -reconfigure
 
       - name: Terraform Destroy
         env:
           GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
+          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform destroy \
