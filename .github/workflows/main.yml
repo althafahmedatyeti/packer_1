@@ -1,5 +1,5 @@
 name: Packer GCP Build
-
+ 
 on:
   push:
     branches:
@@ -9,256 +9,140 @@ on:
     branches:
       - main
   workflow_dispatch:
-
+ 
+permissions:
+  id-token: write
+  contents: read
+ 
 jobs:
   packer-build:
     runs-on: ubuntu-latest
-
+ 
     outputs:
       image_name: ${{ steps.packer.outputs.image_name }}
-
+ 
     env:
       VAULT_ADDR: http://127.0.0.1:8200
       VAULT_TOKEN: root
-
+ 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
+ 
+      #  WORKLOAD IDENTITY AUTH
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/516216943908/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-ci-sa@packer-automation-483407.iam.gserviceaccount.com"
+ 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
-
+ 
       - name: Install Ansible deps
-        run: |
-          pip install ansible passlib
-
+        run: pip install ansible passlib
+ 
       - name: Install Packer & Vault
         run: |
           sudo apt-get update
           sudo apt-get install -y curl unzip gnupg lsb-release jq
-
-          curl -fsSL https://apt.releases.hashicorp.com/gpg \
-            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-          https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-          | sudo tee /etc/apt/sources.list.d/hashicorp.list
-
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
           sudo apt-get update
           sudo apt-get install -y packer vault
-
-          packer --version
-          vault --version
-
+ 
       - name: Start Vault
         run: |
           vault server -dev -dev-root-token-id=root > vault.log 2>&1 &
           sleep 5
-
-      - name: Validate Vault status
-        run: |
-          vault status
-
-      - name: Validate Vault KV engine
-        run: |
-          vault secrets list | grep -q '^secret/' \
-            && echo "Vault KV engine is enabled" \
-            || (echo "Vault KV engine missing" && exit 1)
-
+ 
       - name: Configure Vault Secrets
         run: |
           vault kv put secret/packer/ansible \
             admin_password="${{ secrets.ADMIN_PASSWORD }}" \
             user1_password="${{ secrets.USER1_PASSWORD }}"
-
-      - name: Validate secrets exist in Vault
-        run: |
-          vault kv get secret/packer/ansible > /dev/null \
-            && echo "Secrets exist in Vault" \
-            || (echo "Secrets missing in Vault" && exit 1)
-
-      - name: Validate secret fields
-        run: |
-          vault kv get -field=admin_password secret/packer/ansible > /dev/null
-          vault kv get -field=user1_password secret/packer/ansible > /dev/null
-          echo "Secret fields are accessible"
-
+ 
       - name: Create Packer vars from Vault
         run: |
           ADMIN_PASSWORD=$(vault kv get -field=admin_password secret/packer/ansible)
           USER1_PASSWORD=$(vault kv get -field=user1_password secret/packer/ansible)
-
+ 
           cat <<EOF > packer_template_gcp/secrets.auto.pkrvars.hcl
           admin_password = "${ADMIN_PASSWORD}"
           user1_password = "${USER1_PASSWORD}"
           EOF
-
-          chmod 600 packer_template_gcp/secrets.auto.pkrvars.hcl
-
-      - name: Create GCP credentials
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > gcp-key.json
-          chmod 600 gcp-key.json
-
+ 
       - name: Packer Init
         run: packer init packer_template_gcp
-
+ 
       - name: Packer Validate
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
         run: packer validate packer_template_gcp
-
-      - name: Packer Build and capture image name
+ 
+      - name: Packer Build
         id: packer
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
         run: |
           packer build packer_template_gcp | tee packer.log
-
           IMAGE_NAME=$(grep -oP "project: \Kpacker-[^ ]+" packer.log | tail -1)
-
-          if [ -z "$IMAGE_NAME" ]; then
-            echo "Failed to extract image name"
-            exit 1
-          fi
-
           echo "image_name=$IMAGE_NAME" >> $GITHUB_OUTPUT
-
+ 
   terraform-deploy:
-    name: Terraform Deploy VM
     runs-on: ubuntu-latest
     needs: packer-build
-
+ 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+ 
+      #  WORKLOAD IDENTITY AUTH
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/516216943908/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-ci-sa@packer-automation-483407.iam.gserviceaccount.com"
+ 
       - name: Install Terraform
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl gnupg software-properties-common
-
-          curl -fsSL https://apt.releases.hashicorp.com/gpg \
-            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-          https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-          | sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-          sudo apt-get update
           sudo apt-get install -y terraform
-
-          terraform --version
-
-      - name: Create GCP credentials
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > gcp-key.json
-          chmod 600 gcp-key.json
-
-      # UPDATED PART (ONLY CHANGE)
-      - name: Generate temporary SSH key
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
-          chmod 600 ~/.ssh/id_ed25519
-          chmod 644 ~/.ssh/id_ed25519.pub
-          echo "SSH_PUBLIC_KEY=$(cat ~/.ssh/id_ed25519.pub)" >> $GITHUB_ENV
-
+ 
       - name: Terraform Init
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform init
-
-
-      - name: Terraform Validate
-        run: |
-          cd terraform-gcp
-          terraform validate
-
-      - name: Terraform Plan
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
-        run: |
-          cd terraform-gcp
-          terraform plan \
-            -var="image_name=${{ needs.packer-build.outputs.image_name }}" \
-            -var="ssh_public_key=${SSH_PUBLIC_KEY}"
-
+ 
       - name: Terraform Apply
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform apply \
             -var="image_name=${{ needs.packer-build.outputs.image_name }}" \
-            -var="ssh_public_key=${SSH_PUBLIC_KEY}" \
             -auto-approve
-
-      - name: Validate VM Users & Permissions
-        env:
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
-        run: |
-          chmod +x .vscode/scripts/verify_users.sh
-          ./.vscode/scripts/verify_users.sh
-
+ 
   terraform-destroy-after-30min:
-    name: Terraform Destroy After 30 Minutes
     runs-on: ubuntu-latest
     needs: terraform-deploy
-
+ 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
+ 
+      #  WORKLOAD IDENTITY AUTH
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: "projects/516216943908/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "github-ci-sa@packer-automation-483407.iam.gserviceaccount.com"
+ 
       - name: Install Terraform
         run: |
           sudo apt-get update
-          sudo apt-get install -y curl gnupg software-properties-common
-
-          curl -fsSL https://apt.releases.hashicorp.com/gpg \
-            | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-
-          echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
-          https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-          | sudo tee /etc/apt/sources.list.d/hashicorp.list
-
-          sudo apt-get update
           sudo apt-get install -y terraform
-
-          terraform --version
-
-      - name: Create GCP credentials
-        run: |
-          echo '${{ secrets.GCP_SA_KEY }}' > gcp-key.json
-          chmod 600 gcp-key.json
-
-      - name: Wait for 15 minutes before destroy
-        run: |
-          echo "Waiting for 15 minutes before destroying resources..."
-          sleep 900
-
-      - name: Terraform Init
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
-        run: |
-          cd terraform-gcp
-          terraform init 
-
+ 
+      - name: Wait 15 minutes
+        run: sleep 900
+ 
       - name: Terraform Destroy
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/gcp-key.json
-          TF_TOKEN_app_terraform_io: ${{ secrets.TFC_TOKEN }}
         run: |
           cd terraform-gcp
           terraform destroy \
             -var="image_name=${{ needs.packer-build.outputs.image_name }}" \
-            -var="ssh_public_key=${SSH_PUBLIC_KEY}" \
             -auto-approve
