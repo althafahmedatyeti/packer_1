@@ -113,7 +113,7 @@ jobs:
       # - name: Validate GCP authentication
       #   run: |
       #       gcloud auth list
-      #       gcloud sts get-caller-identity    
+      #  # gcloud sts get-caller-identity    
 
       - name: Install Terraform
         run: |
